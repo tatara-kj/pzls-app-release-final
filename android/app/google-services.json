@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "364251623789",
+    "project_id": "pzls-app",
+    "storage_bucket": "pzls-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:364251623789:android:d80ebd5938de730ff22a64",
+        "android_client_info": {
+          "package_name": "com.galaxies.firebase"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "364251623789-s0gvvv8953tb600sj927gb45b9petsmb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNmpfiJ6h5eAuZwmO-XQrwG6hFE_rbxr0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "364251623789-s0gvvv8953tb600sj927gb45b9petsmb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "364251623789-1qo2cb8mhe3702pfnvnc5dfho1j5ipdt.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.galaxies.firebase"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

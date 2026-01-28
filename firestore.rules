@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ATHLETES – każdy może czytać, nikt z aplikacji nie zapisuje
+    match /athletes/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // EVENTS – każdy może czytać, nikt z aplikacji nie zapisuje
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // SYNC META – opcjonalnie do podglądu daty ostatniej synchronizacji
+    match /sync_meta/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // CACHE – tego NIGDY nie udostępniamy aplikacji
+    match /api_cache/{docId} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,26 +1,35 @@
 {
   "expo": {
-    "name": "apka",
-    "slug": "apka",
+    "name": "PZŁS",
+    "slug": "pzls-app",
     "version": "1.0.0",
+    "scheme": "pzls",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "apka",
+    "jsEngine": "hermes",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "buildNumber": "1",
+      "bundleIdentifier": "com.kuba21.pzls",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.kuba21.pzls",
+      "googleServicesFile": "./google-services.json",
+      "edgeToEdgeEnabled": true,
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "jsEngine": "hermes"
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -28,15 +37,34 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/splash.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#191C2F"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "@react-native-firebase/app",
+
+      "expo-video",
+      "expo-font",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "owner": "kuba21",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a56bf8b7-5f91-48be-bdce-317427c56149"
+      }
     }
   }
 }
