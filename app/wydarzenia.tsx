@@ -383,7 +383,6 @@ type PzlsEvent = {
   location?: string;
 };
 
-
 type MergedEvent = {
   key: string;
   source: "pzls" | "domtel";
@@ -456,7 +455,6 @@ const DomtelDetailsCard = ({
   onClose: () => void;
 }) => {
   const insets = useSafeAreaInsets();
-
 
   const isST = String(domtel.tor) === "S";
   const end = domtel.data2?.trim() ? domtel.data2 : domtel.data1;
@@ -1074,9 +1072,7 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
 
   const [eventsErr, setEventsErr] = useState<string | null>(null);
 
-
   const isActive = props?.isActive !== false;
-
 
   const [events, setEvents] = useState<PzlsEvent[]>([]);
   const [activeEvent, setActiveEvent] = useState<MergedEvent | null>(null);
@@ -1228,7 +1224,7 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
   return (
     <View style={{ flex: 1, backgroundColor: PZLS.bg, paddingTop: insets.top }}>
       <TopWave />
-      {__DEV__ && (
+      {false && (
         <View
           style={{
             position: "absolute",
@@ -1546,9 +1542,7 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
 
             const subLine =
               item.source === "domtel"
-                ? `${item.startISO}${
-                    item.endISO !== item.startISO ? ` – ${item.endISO}` : ""
-                  } • ${item.city}`
+                ? `${item.startISO}${item.endISO !== item.startISO ? ` – ${item.endISO}` : ""} • ${item.city}`
                 : `${format(toLocalDate(item.startISO), "d MMMM yyyy", {
                     locale: pl,
                   })} • ${item.city}`;
