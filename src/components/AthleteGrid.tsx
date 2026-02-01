@@ -2,22 +2,29 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View, Platform } from "react-native";
+import {
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { FlashList } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { matchesAthleteRowFilters, useFilters } from "../hooks/useFilters";
 import {
   AthleteRow,
   getAthletesCount,
   getAthletesLike,
   initAthletesDb,
 } from "../storage/athletesDb";
-import { matchesAthleteRowFilters, useFilters } from "../hooks/useFilters";
-import AthleteTile from "./AthleteTile";
-import SearchFiltersPro from "./SearchFiltersPro";
 
+import AthleteTile from "./AthleteTile";
 import ParticleBackground from "./ParticleBackground";
+import SearchFiltersPro from "./SearchFiltersPro";
 
 type Props = { onSelect: (row: AthleteRow) => void; isActive?: boolean };
 
@@ -46,6 +53,7 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
   const [totalCount, setTotalCount] = useState(0);
   const [rows, setRows] = useState<AthleteRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   // reset limit przy zmianie wyszukiwania/filtrów
@@ -55,22 +63,19 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
 
   const effectiveLimit = anyFilterActive ? limit : BASE_LIMIT;
 
-  // total count
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await initAthletesDb();
-        const c = await getAthletesCount();
-        if (!cancelled) setTotalCount(c);
-      } catch {}
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadCount = useCallback(async () => {
+    await initAthletesDb();
+    const c = await getAthletesCount();
+    setTotalCount(c);
   }, []);
 
-  // load z SQLite
+  const loadRows = useCallback(async (q: string, lim: number) => {
+    await initAthletesDb();
+    const r = await getAthletesLike(q, lim);
+    setRows(r);
+  }, []);
+
+  // initial + whenever query/limit changes
   useEffect(() => {
     let cancelled = false;
 
@@ -78,10 +83,8 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
       setLoading(true);
       setErr(null);
       try {
-        await initAthletesDb();
-        // ✅ 2 argumenty — bez kombinowania z sortem
-        const r = await getAthletesLike(debouncedQuery, effectiveLimit);
-        if (!cancelled) setRows(r);
+        await loadCount();
+        await loadRows(debouncedQuery, effectiveLimit);
       } catch (e: any) {
         if (!cancelled) setErr(e?.message ?? "Błąd pobierania danych");
       } finally {
@@ -92,7 +95,7 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, effectiveLimit]);
+  }, [debouncedQuery, effectiveLimit, loadCount, loadRows]);
 
   const filtered = useMemo(() => {
     return rows.filter((a) => matchesAthleteRowFilters(a, filters));
@@ -109,6 +112,18 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
     if (!canLoadMore) return;
     setLimit((l) => Math.min(l + 240, MAX_LIMIT));
   }, [canLoadMore]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadCount();
+      await loadRows(debouncedQuery, effectiveLimit);
+    } catch (e: any) {
+      setErr(e?.message ?? "Błąd odświeżania");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [debouncedQuery, effectiveLimit, loadCount, loadRows]);
 
   const Header = (
     <View style={{ paddingTop: insets.top + 10 }}>
@@ -127,19 +142,17 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
         <Text style={styles.counterText}>
           {loading
             ? "Ładowanie…"
-            : `${filtered.length}${
-                totalCount ? ` / ${totalCount}` : ""
-              } wyników`}
+            : `${filtered.length}${totalCount ? ` / ${totalCount}` : ""} wyników`}
         </Text>
       </View>
 
       {err ? (
         <View style={styles.errorBox}>
           <Ionicons name="warning" size={18} color="#FFF" />
-          <Text style={styles.errorText} numberOfLines={2}>
+          <Text style={styles.errorText} numberOfLines={3}>
             {err}
           </Text>
-          <Pressable onPress={() => setLimit((l) => l)} style={styles.retryBtn}>
+          <Pressable onPress={onRefresh} style={styles.retryBtn}>
             <Text style={styles.retryText}>Spróbuj ponownie</Text>
           </Pressable>
         </View>
@@ -151,7 +164,6 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
 
   return (
     <View style={styles.root}>
-      {/* ✅ TŁO: tylko śnieżynki — zero kapsułek/aurory */}
       <View pointerEvents="none" style={styles.bgLayer}>
         <ParticleBackground
           enabled={isActive}
@@ -170,6 +182,13 @@ export default function AthleteGrid({ onSelect, isActive = true }: Props) {
         )}
         onEndReached={onLoadMore}
         onEndReachedThreshold={0.6}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#E32428"
+          />
+        }
         ListFooterComponent={
           canLoadMore ? (
             <Pressable

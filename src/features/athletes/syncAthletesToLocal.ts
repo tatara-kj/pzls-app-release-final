@@ -3,6 +3,7 @@ import firestore, {
 } from "@react-native-firebase/firestore";
 import {
   AthleteRow,
+  getAthletesCount,
   getMeta,
   initAthletesDb,
   setMeta,
@@ -26,7 +27,7 @@ function buildSearchKey(
   firstNameKey: string,
   lastNameKey: string,
   clubKey: string,
-  categoryKey: string
+  categoryKey: string,
 ) {
   return `${lastNameKey} ${firstNameKey} ${firstNameKey} ${lastNameKey} ${clubKey} ${categoryKey}`
     .replace(/\s+/g, " ")
@@ -37,15 +38,26 @@ export async function syncAthletesToLocal() {
   await initAthletesDb();
 
   const now = Date.now();
+  const localCount = await getAthletesCount();
+  const isBootstrap = localCount === 0;
+
   const lastAttempt = await getMeta(GUARD_KEY);
-  if (lastAttempt && now - Number(lastAttempt) < MIN_INTERVAL_MS) {
+  if (
+    !isBootstrap &&
+    lastAttempt &&
+    now - Number(lastAttempt) < MIN_INTERVAL_MS
+  ) {
     return {
       skipped: true,
       reason: "guard",
       nextInMs: MIN_INTERVAL_MS - (now - Number(lastAttempt)),
     };
   }
-  await setMeta(GUARD_KEY, String(now));
+
+  // guard ustawiaj tylko dla normalnych synców (nie dla bootstrapu)
+  if (!isBootstrap) {
+    await setMeta(GUARD_KEY, String(now));
+  }
 
   const last = await getMeta(META_KEY);
   let lastSyncMs = last ? Number(last) : 0;
@@ -59,7 +71,7 @@ export async function syncAthletesToLocal() {
     baseQuery = baseQuery.where(
       "updatedAt",
       ">",
-      firestore.Timestamp.fromMillis(lastSyncMs)
+      firestore.Timestamp.fromMillis(lastSyncMs),
     );
   }
 
@@ -111,7 +123,7 @@ export async function syncAthletesToLocal() {
           firstNameKey,
           lastNameKey,
           clubKey,
-          categoryKey
+          categoryKey,
         ),
       };
     });

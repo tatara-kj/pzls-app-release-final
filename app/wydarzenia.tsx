@@ -1,14 +1,15 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { getApp } from "@react-native-firebase/app";
 import firestore from "@react-native-firebase/firestore";
+import { FlashList } from "@shopify/flash-list";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient as ExpoGradient } from "expo-linear-gradient";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { MotiView } from "moti";
-import type { DomtelEvent } from "../src/features/events/types";
-import { FlashList } from "@shopify/flash-list";
 import { useDomtelEventResults } from "../src/features/events/hooks/useDomtelEventResults";
+import type { DomtelEvent } from "../src/features/events/types";
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -103,19 +104,49 @@ function nextDayISO(iso: string) {
   d.setDate(d.getDate() + 1);
   return format(d, "yyyy-MM-dd");
 }
-function toLocalDate(input: string) {
-  const s = String(input || "").trim();
+function toLocalDate(input: any) {
+  if (!input) return new Date(NaN);
+
+  // Firestore Timestamp (RN Firebase) ma .toDate()
+  if (typeof input === "object" && typeof input?.toDate === "function") {
+    return input.toDate();
+  }
+
+  if (input instanceof Date) return input;
+
+  const s = String(input).trim();
   if (!s) return new Date(NaN);
+
   // jeśli to "yyyy-MM-dd" to dopnij local midnight, żeby nie przesuwało dnia strefą
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + "T00:00:00");
-  return new Date(s);
+
+  const d = new Date(s);
+  return d;
 }
 
-function toISODateSafe(input: string) {
-  const s = String(input || "").trim();
+function toISODateSafe(input: any) {
+  if (!input) return "";
+
+  // Timestamp / Date
+  if (typeof input === "object" && typeof input?.toDate === "function") {
+    const d = input.toDate();
+    return Number.isNaN(d.getTime()) ? "" : format(d, "yyyy-MM-dd");
+  }
+  if (input instanceof Date) {
+    return Number.isNaN(input.getTime()) ? "" : format(input, "yyyy-MM-dd");
+  }
+
+  const s = String(input).trim();
+  if (!s) return "";
+
+  // "yyyy-MM-dd" albo "yyyy-MM-ddT..."
   const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (m) return m[1]; // "yyyy-MM-dd" niezależnie czy jest "T...Z"
-  return format(new Date(s), "yyyy-MM-dd");
+  if (m) return m[1];
+
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+
+  return format(d, "yyyy-MM-dd");
 }
 
 function isoInRange(selISO: string, startISO: string, endISO?: string) {
@@ -352,6 +383,7 @@ type PzlsEvent = {
   location?: string;
 };
 
+
 type MergedEvent = {
   key: string;
   source: "pzls" | "domtel";
@@ -424,6 +456,8 @@ const DomtelDetailsCard = ({
   onClose: () => void;
 }) => {
   const insets = useSafeAreaInsets();
+
+
   const isST = String(domtel.tor) === "S";
   const end = domtel.data2?.trim() ? domtel.data2 : domtel.data1;
 
@@ -1030,7 +1064,19 @@ const EventDetailsCard = ({
 export default function Wydarzenia(props: { isActive?: boolean }) {
   const insets = useSafeAreaInsets();
 
+  const fbProjectId = useMemo(() => {
+    try {
+      return getApp().options?.projectId ?? "no-projectId";
+    } catch {
+      return "no-firebase-app";
+    }
+  }, []);
+
+  const [eventsErr, setEventsErr] = useState<string | null>(null);
+
+
   const isActive = props?.isActive !== false;
+
 
   const [events, setEvents] = useState<PzlsEvent[]>([]);
   const [activeEvent, setActiveEvent] = useState<MergedEvent | null>(null);
@@ -1047,7 +1093,7 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
     [visibleMonthISO],
   );
 
-  const { domtelEvents, domtelLoading, refetchDomtel } =
+  const { domtelEvents, domtelLoading, domtelError, refetchDomtel } =
     useDomtelEvents(season);
 
   const scrollY = React.useRef(new Animated.Value(0)).current;
@@ -1134,8 +1180,12 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
         })
         .filter((e): e is PzlsEvent => !!(e && e.date && e.name))
         .sort((a, b) => (a.date > b.date ? 1 : -1));
+
       setEvents(list);
+      setEventsErr(null);
       await refetchDomtel();
+    } catch (e: any) {
+      setEventsErr(String(e?.message || "Błąd odświeżania Firestore"));
     } finally {
       setRefreshing(false);
     }
@@ -1147,17 +1197,25 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
     const unsub = firestore()
       .collection("events")
       .orderBy("date")
-      .onSnapshot((snap) => {
-        const docs = Array.isArray(snap?.docs) ? snap.docs : [];
-        const list = docs
-          .map((d) => {
-            const val = d.data();
-            return val ? ({ ...val, id: d.id } as any) : null;
-          })
-          .filter((e): e is PzlsEvent => !!(e && e.date && e.name))
-          .sort((a, b) => (a.date > b.date ? 1 : -1));
-        setEvents(list);
-      });
+      .onSnapshot(
+        (snap) => {
+          const docs = Array.isArray(snap?.docs) ? snap.docs : [];
+          const list = docs
+            .map((d) => {
+              const val = d.data();
+              return val ? ({ ...val, id: d.id } as any) : null;
+            })
+            .filter((e): e is PzlsEvent => !!(e && e.date && e.name))
+            .sort((a, b) => (a.date > b.date ? 1 : -1));
+
+          setEvents(list);
+          setEventsErr(null); // ✅ czyścimy błąd jak się udało
+        },
+        (err) => {
+          setEvents([]);
+          setEventsErr(String(err?.message || "Firestore: błąd odczytu"));
+        },
+      );
 
     return () => unsub();
   }, [isActive]);
@@ -1168,8 +1226,61 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
   );
 
   return (
-   <View style={{ flex: 1, backgroundColor: PZLS.bg, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: PZLS.bg, paddingTop: insets.top }}>
       <TopWave />
+      {__DEV__ && (
+        <View
+          style={{
+            position: "absolute",
+            top: insets.top + 6,
+            right: 10,
+            zIndex: 999,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderRadius: 12,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.12)",
+            maxWidth: width * 0.92,
+          }}
+        >
+          <Text
+            style={{ color: "#fff", fontSize: 12, fontFamily: "Jost-Medium" }}
+          >
+            Firebase: {fbProjectId}
+          </Text>
+
+          <Text
+            style={{ color: "#fff", fontSize: 12, fontFamily: "Jost-Medium" }}
+          >
+            events: {events.length} | domtel: {domtelEvents.length}
+          </Text>
+
+          {!!eventsErr && (
+            <Text
+              style={{
+                color: PZLS.primary,
+                fontSize: 12,
+                fontFamily: "Jost-Medium",
+              }}
+            >
+              Firestore ERR: {eventsErr}
+            </Text>
+          )}
+
+          {!!domtelError && (
+            <Text
+              style={{
+                color: PZLS.secondary,
+                fontSize: 12,
+                fontFamily: "Jost-Medium",
+              }}
+            >
+              API ERR: {domtelError}
+            </Text>
+          )}
+        </View>
+      )}
 
       <BottomWave
         translateY={scrollY.interpolate({
@@ -1398,6 +1509,22 @@ export default function Wydarzenia(props: { isActive?: boolean }) {
             <View style={{ padding: 24, alignItems: "center" }}>
               {domtelLoading ? (
                 <ActivityIndicator size="small" color={PZLS.primary} />
+              ) : eventsErr || domtelError ? (
+                <>
+                  <Text style={styles.noEv}>
+                    {eventsErr
+                      ? `Firestore: ${eventsErr}`
+                      : `API: ${domtelError}`}
+                  </Text>
+
+                  <Pressable onPress={onRefresh} style={{ marginTop: 10 }}>
+                    <Text
+                      style={{ fontFamily: "Jost-Medium", color: PZLS.primary }}
+                    >
+                      Spróbuj ponownie
+                    </Text>
+                  </Pressable>
+                </>
               ) : (
                 <Text style={styles.noEv}>Brak wydarzeń w tym dniu</Text>
               )}
